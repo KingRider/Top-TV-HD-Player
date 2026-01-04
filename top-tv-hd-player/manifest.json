@@ -1,0 +1,18 @@
+
+{
+  "short_name": "Top TV HD",
+  "name": "Top TV HD - Live Stream",
+  "icons": [
+    {
+      "src": "https://i.imgur.com/oyiG5iZ.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "orientation": "landscape"
+}
