@@ -30,7 +30,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
     if (!video) return;
 
     try {
-      // If there's an existing play promise, we wait for it
       if (playPromiseRef.current) {
         await playPromiseRef.current;
       }
@@ -42,10 +41,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
         playPromiseRef.current = null;
       }
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        // Expected if play() is interrupted, we can ignore this
-        console.log("Play request was aborted (expected behavior during rapid state changes).");
-      } else {
+      if (error.name !== 'AbortError') {
         console.error("Playback failed:", error);
       }
       playPromiseRef.current = null;
@@ -56,18 +52,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
     const video = videoRef.current;
     if (!video) return;
 
-    // If a play is in progress, wait for it to finish before pausing
     if (playPromiseRef.current) {
       try {
         await playPromiseRef.current;
-      } catch (e) {
-        // ignore play errors when we are trying to pause
-      }
+      } catch (e) {}
     }
     video.pause();
   }, []);
 
-  // Sistema de Auto-Hide dos controles
   const hideControlsAfterDelay = useCallback(() => {
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     controlsTimeoutRef.current = window.setTimeout(() => {
@@ -80,7 +72,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
     hideControlsAfterDelay();
   };
 
-  // Check for HLS Library
   useEffect(() => {
     const checkHls = () => {
       if (window.Hls) setHlsReady(true);
@@ -103,12 +94,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
 
     const Hls = window.Hls;
     if (Hls.isSupported()) {
-      // Configurações estilo ExoPlayer: Buffering agressivo e baixa latência
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 60,
-        maxBufferLength: 30, // 30 segundos de buffer
+        maxBufferLength: 30,
         maxMaxBufferLength: 60,
         liveSyncDurationCount: 3,
         manifestLoadingMaxRetry: Infinity,
@@ -121,16 +111,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         safePlay().catch(() => {
-          // Fallback se o navegador bloquear autoplay com som
           video.muted = true;
           safePlay();
         });
       });
 
-      // Recuperação automática de erros (ExoPlayer behavior)
       hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
         if (data.fatal) {
-          console.warn('Fatal error detected, attempting recovery...', data.type);
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               hls.startLoad();
@@ -180,12 +167,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
   const togglePlay = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!videoRef.current) return;
-    
-    if (videoRef.current.paused) {
-      await safePlay();
-    } else {
-      await safePause();
-    }
+    if (videoRef.current.paused) await safePlay();
+    else await safePause();
     handleActivity();
   };
 
@@ -195,12 +178,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
     handleActivity();
   };
 
+  const toggleRotation = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (document.fullscreenElement) {
+        const orientation = screen.orientation.type.includes('portrait') ? 'landscape' : 'portrait';
+        await (screen.orientation as any).lock(orientation);
+      } else {
+        if (containerRef.current?.requestFullscreen) {
+          await containerRef.current.requestFullscreen();
+          await (screen.orientation as any).lock('landscape');
+        }
+      }
+    } catch (err) {
+      console.warn("Rotação não suportada ou bloqueada pelo navegador:", err);
+    }
+    handleActivity();
+  };
+
   return (
     <div 
       ref={containerRef}
       onClick={handleActivity}
       onMouseMove={handleActivity}
-      className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden cursor-none"
+      className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden"
       style={{ cursor: showControls ? 'default' : 'none' }}
     >
       <video 
@@ -210,59 +211,72 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
         autoPlay
       />
 
-      {/* Buffering Indicator */}
       {isBuffering && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
           <div className="w-16 h-16 border-4 border-red-600/30 border-t-red-600 rounded-full animate-spin"></div>
         </div>
       )}
 
-      {/* Overlay de Marca (Permanente) */}
       <div className="absolute top-6 left-6 md:top-10 md:left-10 z-10 pointer-events-none">
         <img src={logoUrl} alt="Top TV" className="h-10 md:h-16 drop-shadow-2xl opacity-80" />
       </div>
 
-      {/* Cinematic Controls */}
       <div className={`absolute inset-0 z-30 flex flex-col justify-end transition-opacity duration-500 ease-in-out ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-        
-        {/* Sombra inferior para legibilidade */}
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none"></div>
 
-        <div className="relative p-6 md:p-12 space-y-6">
+        <div className="relative p-6 md:p-12 space-y-8">
           
-          {/* Main Control Row */}
-          <div className="flex items-center justify-center gap-8">
-            <button 
-              onClick={refreshStream}
-              className="p-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/10 transition-all active:scale-90"
-              title="Atualizar"
-            >
-              <RefreshIcon size={32} />
-            </button>
+          {/* Layout de Controles Centralizado */}
+          <div className="flex items-center justify-between w-full max-w-6xl mx-auto px-2">
+            
+            {/* Esquerda: Ferramentas (flex-1 para empurrar o centro) */}
+            <div className="flex flex-1 items-center gap-3 md:gap-4 justify-start">
+              <button 
+                onClick={refreshStream}
+                className="p-3.5 md:p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-90 group"
+                title="Atualizar"
+              >
+                <RefreshIcon size={24} />
+              </button>
 
-            <button 
-              onClick={togglePlay}
-              className="p-6 rounded-full bg-red-600 hover:bg-red-500 shadow-xl shadow-red-900/20 transition-all active:scale-95 flex items-center justify-center"
-            >
-              {isPlaying ? <PauseIcon size={48} /> : <PlayIcon size={48} />}
-            </button>
+              <button 
+                onClick={toggleRotation}
+                className="p-3.5 md:p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-xl border border-white/10 transition-all active:scale-90 group"
+                title="Girar Tela"
+              >
+                <RotateIcon size={24} />
+              </button>
+            </div>
 
-            <div className="w-[32px] md:w-[64px]" /> {/* Spacer */}
+            {/* Centro: Play/Pause Principal (flex-none) */}
+            <div className="flex flex-none items-center justify-center">
+              <button 
+                onClick={togglePlay}
+                className="p-6 md:p-8 rounded-full bg-red-600 hover:bg-red-500 shadow-[0_0_30px_rgba(220,38,38,0.3)] shadow-red-900/40 transition-all active:scale-95 flex items-center justify-center transform hover:scale-105"
+              >
+                {isPlaying ? <PauseIcon size={44} /> : <PlayIcon size={44} />}
+              </button>
+            </div>
+
+            {/* Direita: Espaço Vazio para Simetria (flex-1) */}
+            <div className="flex flex-1 justify-end opacity-0 pointer-events-none hidden md:flex">
+              <div className="p-4 w-[116px]"></div> {/* Compensa o tamanho dos botões da esquerda */}
+            </div>
+            {/* Mobile spacer if needed */}
+            <div className="flex flex-1 md:hidden"></div>
           </div>
 
-          {/* Progress / Live Indicator */}
-          <div className="w-full max-w-4xl mx-auto flex flex-col gap-2">
-            <div className="flex items-center justify-between text-white/60 text-xs font-bold uppercase tracking-widest">
+          <div className="w-full max-w-6xl mx-auto flex flex-col gap-3">
+            <div className="flex items-center justify-between text-white/50 text-[10px] md:text-xs font-bold uppercase tracking-[0.2em]">
               <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-                Transmissão ao Vivo
+                <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.8)]"></span>
+                Top TV Live Stream
               </span>
-              <span>1080p Ultra HD</span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[9px]">AUTO 1080P</span>
             </div>
             
-            {/* Live Progress Bar (Mimics ExoPlayer) */}
-            <div className="relative h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-              <div className="absolute top-0 left-0 h-full bg-red-600 w-full animate-[live-progress_10s_linear_infinite]"></div>
+            <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
+              <div className="absolute top-0 left-0 h-full bg-red-600 w-full animate-[live-progress_8s_linear_infinite]"></div>
             </div>
           </div>
         </div>
@@ -270,16 +284,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
 
       <style>{`
         @keyframes live-progress {
-          0% { opacity: 0.6; }
+          0% { opacity: 0.4; }
           50% { opacity: 1; }
-          100% { opacity: 0.6; }
+          100% { opacity: 0.4; }
         }
       `}</style>
     </div>
   );
 };
 
-// Icons Components
 const PlayIcon = ({ size = 24 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="white">
     <path d="M8 5v14l11-7z" />
@@ -293,9 +306,19 @@ const PauseIcon = ({ size = 24 }) => (
 );
 
 const RefreshIcon = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:rotate-180 transition-transform duration-500">
     <path d="M23 4v6h-6"></path>
     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+  </svg>
+);
+
+const RotateIcon = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 12a11 11 0 0 1-22 0 11 11 0 0 1 22 0z" opacity="0.2"></path>
+    <path d="M15 3h6v6"></path>
+    <path d="M9 21H3v-6"></path>
+    <path d="M21 3l-7 7"></path>
+    <path d="M3 21l7-7"></path>
   </svg>
 );
 
