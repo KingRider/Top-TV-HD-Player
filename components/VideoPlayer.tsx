@@ -1,4 +1,5 @@
 
+import Hls from './hls.js'; // Correct import
 import React, { useEffect, useRef, useState } from 'react';
 
 interface VideoPlayerProps {
