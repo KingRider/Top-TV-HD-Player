@@ -25,14 +25,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
   const [isBuffering, setIsBuffering] = useState(true);
   const [hlsReady, setHlsReady] = useState(false);
 
-  // Tenta bloquear orientação via API para navegadores que suportam
   useEffect(() => {
     const lockLandscape = async () => {
       try {
         if (screen.orientation && (screen.orientation as any).lock) {
-          await (screen.orientation as any).lock('landscape').catch(() => {
-            // Silencioso: falha comum se não estiver em fullscreen
-          });
+          await (screen.orientation as any).lock('landscape').catch(() => {});
         }
       } catch (err) {}
     };
@@ -183,7 +180,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
       ref={containerRef}
       onClick={handleActivity}
       onMouseMove={handleActivity}
-      className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden"
+      className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden"
       style={{ cursor: showControls ? 'default' : 'none' }}
     >
       <video 
@@ -285,7 +282,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, logoUrl }) => {
   );
 };
 
-// Ícones simplificados para performance
 const PlayIcon = ({ size = 24 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
 );
