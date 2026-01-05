@@ -3,7 +3,7 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
@@ -25,12 +25,26 @@
       color: #ffffff;
       margin: 0;
       padding: 0;
-      width: 100%;
+      width: 100vw;
       height: 100vh;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
       overflow: hidden;
     }
+
+    /* Forçar Landscape em dispositivos mobile segurados na vertical */
+    @media screen and (orientation: portrait) {
+      #root {
+        width: 100vh;
+        height: 100vw;
+        transform: rotate(90deg);
+        transform-origin: bottom left;
+        position: absolute;
+        top: -100vw;
+        left: 0;
+      }
+    }
+
     @keyframes slow-spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
